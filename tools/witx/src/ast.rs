@@ -146,6 +146,7 @@ pub enum Type {
     Flags(FlagsDatatype),
     Struct(StructDatatype),
     Union(UnionDatatype),
+    TaggedUnion(TaggedUnionDatatype),
     Handle(HandleDatatype),
     Array(TypeRef),
     Pointer(TypeRef),
@@ -162,6 +163,7 @@ impl Type {
             Flags(_) => "flags",
             Struct(_) => "struct",
             Union(_) => "union",
+            TaggedUnion(_) => "taggedunion",
             Handle(_) => "handle",
             Array(_) => "array",
             Pointer(_) => "pointer",
@@ -254,6 +256,20 @@ pub struct UnionDatatype {
 pub struct UnionVariant {
     pub name: Id,
     pub tref: TypeRef,
+    pub docs: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TaggedUnionDatatype {
+    pub tag: Rc<NamedType>,
+    pub tag_docs: String,
+    pub variants: Vec<TaggedUnionVariant>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TaggedUnionVariant {
+    pub name: Id,
+    pub tref: Option<TypeRef>,
     pub docs: String,
 }
 

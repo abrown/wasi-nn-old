@@ -1,6 +1,6 @@
 use crate::{
     BuiltinType, EnumDatatype, FlagsDatatype, HandleDatatype, IntRepr, NamedType, StructDatatype,
-    Type, TypeRef, UnionDatatype,
+    TaggedUnionDatatype, Type, TypeRef, UnionDatatype,
 };
 
 // A lattice. Eq + Eq = Eq, SuperSet + any = NotEq, NotEq + any = NotEq.
@@ -191,6 +191,55 @@ impl Representable for UnionDatatype {
         }
     }
 }
+impl Representable for TaggedUnionDatatype {
+    fn representable(&self, by: &Self) -> RepEquality {
+        // Tagged unions must have equal variants, by name (independent of order). If `by` has extra
+        // variants, its a superset.
+        // We would require require a more expressive RepEquality enum to describe which variants
+        // might be supersets.
+        if self.variants.len() > by.variants.len() {
+            return RepEquality::NotEq;
+        }
+        for v in self.variants.iter() {
+            if let Some(byv) = by.variants.iter().find(|byv| byv.name == v.name) {
+                if v.tref.is_none() && byv.tref.is_none() {
+                    // Both empty is OK
+                } else if v.tref.is_some() && byv.tref.is_some() {
+                    if v.tref
+                        .as_ref()
+                        .unwrap()
+                        .type_()
+                        .representable(&*byv.tref.as_ref().unwrap().type_())
+                        != RepEquality::Eq
+                    {
+                        // Fields must be Eq
+                        return RepEquality::NotEq;
+                    }
+                } else {
+                    // Either one empty means not representable
+                    return RepEquality::NotEq;
+                }
+            } else {
+                return RepEquality::NotEq;
+            }
+        }
+        if by.variants.len() > self.variants.len() {
+            // By is a superset of self only if the tags are as well:
+            if self.tag.type_().representable(&*by.tag.type_()) == RepEquality::Superset {
+                RepEquality::Superset
+            } else {
+                RepEquality::NotEq
+            }
+        } else {
+            // By and self have matching variants, so they are equal if tags are:
+            if self.tag.type_().representable(&*by.tag.type_()) == RepEquality::Eq {
+                RepEquality::Eq
+            } else {
+                RepEquality::NotEq
+            }
+        }
+    }
+}
 
 impl Representable for TypeRef {
     fn representable(&self, by: &Self) -> RepEquality {
@@ -211,6 +260,7 @@ impl Representable for Type {
             (Type::Flags(s), Type::Flags(b)) => s.representable(b),
             (Type::Struct(s), Type::Struct(b)) => s.representable(b),
             (Type::Union(s), Type::Union(b)) => s.representable(b),
+            (Type::TaggedUnion(s), Type::TaggedUnion(b)) => s.representable(b),
             (Type::Handle(s), Type::Handle(b)) => s.representable(b),
             (Type::Array(s), Type::Array(b)) => s.representable(b),
             (Type::Pointer(s), Type::Pointer(b)) => s.representable(b),

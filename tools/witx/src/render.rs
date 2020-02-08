@@ -121,6 +121,7 @@ impl Type {
             Type::Flags(a) => a.to_sexpr(),
             Type::Struct(a) => a.to_sexpr(),
             Type::Union(a) => a.to_sexpr(),
+            Type::TaggedUnion(a) => a.to_sexpr(),
             Type::Handle(a) => a.to_sexpr(),
             Type::Array(a) => SExpr::Vec(vec![SExpr::word("array"), a.to_sexpr()]),
             Type::Pointer(p) => SExpr::Vec(vec![
@@ -219,6 +220,35 @@ impl UnionDatatype {
                         v.tref.to_sexpr(),
                     ]),
                 )
+            })
+            .collect::<Vec<SExpr>>();
+        SExpr::Vec([header, variants].concat())
+    }
+}
+
+impl TaggedUnionDatatype {
+    pub fn to_sexpr(&self) -> SExpr {
+        let tag = SExpr::docs(&self.tag_docs, self.tag.to_sexpr());
+        let header = vec![SExpr::word("tagged_union"), tag];
+        let variants = self
+            .variants
+            .iter()
+            .map(|v| {
+                if let Some(tref) = &v.tref {
+                    SExpr::docs(
+                        &v.docs,
+                        SExpr::Vec(vec![
+                            SExpr::word("field"),
+                            v.name.to_sexpr(),
+                            tref.to_sexpr(),
+                        ]),
+                    )
+                } else {
+                    SExpr::docs(
+                        &v.docs,
+                        SExpr::Vec(vec![SExpr::word("empty"), v.name.to_sexpr()]),
+                    )
+                }
             })
             .collect::<Vec<SExpr>>();
         SExpr::Vec([header, variants].concat())

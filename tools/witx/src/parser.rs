@@ -24,6 +24,7 @@ mod kw {
     wast::custom_keyword!(f32);
     wast::custom_keyword!(f64);
     wast::custom_keyword!(field);
+    wast::custom_keyword!(empty);
     wast::custom_keyword!(flags);
     wast::custom_keyword!(handle);
     wast::custom_keyword!(int);
@@ -33,6 +34,7 @@ mod kw {
     wast::custom_keyword!(r#enum = "enum");
     wast::custom_keyword!(r#struct = "struct");
     wast::custom_keyword!(r#union = "union");
+    wast::custom_keyword!(tagged_union = "tagged_union");
     wast::custom_keyword!(r#use = "use");
     wast::custom_keyword!(s16);
     wast::custom_keyword!(s32);
@@ -312,6 +314,7 @@ pub enum TypedefSyntax<'a> {
     Flags(FlagsSyntax<'a>),
     Struct(StructSyntax<'a>),
     Union(UnionSyntax<'a>),
+    TaggedUnion(TaggedUnionSyntax<'a>),
     Handle(HandleSyntax<'a>),
     Array(Box<TypedefSyntax<'a>>),
     Pointer(Box<TypedefSyntax<'a>>),
@@ -340,6 +343,8 @@ impl<'a> Parse<'a> for TypedefSyntax<'a> {
                     Ok(TypedefSyntax::Struct(parser.parse()?))
                 } else if l.peek::<kw::r#union>() {
                     Ok(TypedefSyntax::Union(parser.parse()?))
+                } else if l.peek::<kw::tagged_union>() {
+                    Ok(TypedefSyntax::TaggedUnion(parser.parse()?))
                 } else if l.peek::<kw::handle>() {
                     Ok(TypedefSyntax::Handle(parser.parse()?))
                 } else if l.peek::<kw::array>() {
@@ -491,6 +496,51 @@ impl<'a> Parse<'a> for UnionSyntax<'a> {
             fields.push(parser.parse()?);
         }
         Ok(UnionSyntax { fields })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaggedUnionSyntax<'a> {
+    pub tag: Documented<'a, wast::Id<'a>>,
+    pub fields: Vec<Documented<'a, VariantSyntax<'a>>>,
+}
+
+impl<'a> Parse<'a> for TaggedUnionSyntax<'a> {
+    fn parse(parser: Parser<'a>) -> Result<Self> {
+        parser.parse::<kw::r#tagged_union>()?;
+        let tag = parser.parse()?;
+        let mut fields = Vec::new();
+        fields.push(parser.parse()?);
+        while !parser.is_empty() {
+            fields.push(parser.parse()?);
+        }
+        Ok(TaggedUnionSyntax { tag, fields })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VariantSyntax<'a> {
+    Field(FieldSyntax<'a>),
+    Empty(wast::Id<'a>),
+}
+
+impl<'a> Parse<'a> for VariantSyntax<'a> {
+    fn parse(parser: Parser<'a>) -> Result<Self> {
+        parser.parens(|p| {
+            let mut l = parser.lookahead1();
+            if l.peek::<kw::field>() {
+                p.parse::<kw::field>()?;
+                let name = p.parse()?;
+                let type_ = p.parse()?;
+                Ok(VariantSyntax::Field(FieldSyntax { name, type_ }))
+            } else if l.peek::<kw::empty>() {
+                p.parse::<kw::empty>()?;
+                let name = p.parse()?;
+                Ok(VariantSyntax::Empty(name))
+            } else {
+                Err(l.error())
+            }
+        })
     }
 }
 

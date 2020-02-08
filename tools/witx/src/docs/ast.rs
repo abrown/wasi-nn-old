@@ -6,7 +6,7 @@ use crate::{
     ast::{
         BuiltinType, Document, EnumDatatype, FlagsDatatype, HandleDatatype, IntDatatype, IntRepr,
         InterfaceFunc, InterfaceFuncParam, Module, ModuleImport, ModuleImportVariant, NamedType,
-        StructDatatype, Type, TypeRef, UnionDatatype,
+        StructDatatype, TaggedUnionDatatype, Type, TypeRef, UnionDatatype,
     },
     polyfill::{FuncPolyfill, ModulePolyfill, ParamPolyfill, Polyfill, TypePolyfill},
     RepEquality,
@@ -68,6 +68,7 @@ impl ToMarkdown for Type {
             Self::Flags(a) => a.generate(node.clone()),
             Self::Struct(a) => a.generate(node.clone()),
             Self::Union(a) => a.generate(node.clone()),
+            Self::TaggedUnion(a) => a.generate(node.clone()),
             Self::Handle(a) => a.generate(node.clone()),
             Self::Array(a) => {
                 node.content_ref_mut::<MdNamedType>().r#type = Some(MdType::Array {
@@ -218,6 +219,35 @@ impl ToMarkdown for UnionDatatype {
     }
 }
 
+impl ToMarkdown for TaggedUnionDatatype {
+    fn generate(&self, node: MdNodeRef) {
+        let heading = heading_from_node(&node, 1);
+        node.new_child(MdSection::new(heading, "Tag type"));
+        self.tag.generate(node.clone());
+        node.new_child(MdSection::new(heading, "Union variants"));
+
+        for variant in &self.variants {
+            let name = variant.name.as_str();
+            let id = if let Some(id) = node.any_ref().id() {
+                format!("{}.{}", id, name)
+            } else {
+                name.to_owned()
+            };
+            let n = node.new_child(MdNamedType::new(
+                MdHeading::new_bullet(),
+                id.as_str(),
+                name,
+                &variant.docs,
+            ));
+            if let Some(tref) = &variant.tref {
+                tref.generate(n.clone());
+            }
+        }
+
+        node.content_ref_mut::<MdNamedType>().r#type = Some(MdType::TaggedUnion);
+    }
+}
+
 impl ToMarkdown for HandleDatatype {
     fn generate(&self, node: MdNodeRef) {
         // TODO this needs more work
@@ -348,6 +378,7 @@ impl TypeRef {
                 | Type::Flags { .. }
                 | Type::Struct { .. }
                 | Type::Union { .. }
+                | Type::TaggedUnion { .. }
                 | Type::Handle { .. } => {
                     unimplemented!("type_name of anonymous compound datatypes")
                 }
