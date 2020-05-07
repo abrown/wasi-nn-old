@@ -1,0 +1,130 @@
+;; WASI Machine Learning API.
+;;
+;; This module draws inspiration from the inference side of [WebNN](https://webmachinelearning.github.io/webnn/#api).
+;; In other words, this API will allow a user to execute an inference using a model, but not train or design the model.
+;; The model is an opaque byte sequence to this API and must be interpreted by the underlying implementation of this
+;; API.
+;;
+;; This is a `witx` file. See [here](https://github.com/WebAssembly/WASI/tree/master/docs/witx.md)
+;; for an explanation of what that means.
+
+(use "typenames.witx")
+
+;;; The dimensions of a tensor.
+;;;
+;;; The array length matches the tensor rank and each element in the array
+;;; describes the size of each dimension.
+(typename $tensor_dimensions (array i32))
+
+;;; The type of the elements in tensor.
+(typename $tensor_type
+  (enum u8
+    $f16
+    $f32
+    $i32
+    $u32
+  )
+)
+
+;;; Describe a tensor.
+(typename $tensor_description
+  ;;; Describe the size of the tensor (e.g. 2x2x2x2 -> [2, 2, 2, 2]). To represent a tensor containing a single value,
+  ;;; use [1] as the tensor dimensions.
+  (field $dimensions $tensor_dimensions)
+  ;; Describe the type of element in the tensor (e.g. f32).
+  (field $type $tensor_type)
+)
+
+
+;;; A tensor.
+(typename $tensor
+  (struct
+    ;;; A description of the tensor, allowing the runtime to understand the raw tensor data in $data (e.g. a 3x4x5
+    ;;; tensor of u32 elements).
+    (field $description $tensor_description)
+
+    ;;; The tensor data; initially conceived as a sparse representation, each empty cell would be filled with zeroes and
+    ;;; the array length must match the product of all of the dimensions and the number of bytes in the type (e.g. a 2x2
+    ;;; tensor with 4-byte f32 elements would have a data array of length 16). Naturally, this representation requires
+    ;;; some knowledge of how to lay out data in memory--e.g. using row-major ordering--and could perhaps be improved
+    ;;; by future witx features (TODO).
+    (field $data (array u8))
+  )
+)
+
+;;; Describes the encoding of the model. TODO fill out when we know what types of models to support.
+(typename $model_encoding
+  (enum u8
+    $unknown
+  )
+)
+
+;;; An instance of a model that can be used for inference.
+;;; A $model_execution allows for attaching inputs prior to calling `compute` on a model and retrieving outputs after
+;;; the computation has completed. TODO a handle may not be the right type but we want it to be opaque to users.
+(typename $model_execution (handle))
+
+(module $wasi_ephemeral_nn
+  ;;; Linear memory to be accessed by WASI functions that need it.
+  (import "memory" (memory))
+
+  ;;; Load an opaque sequence of bytes to use as the model for inference.
+  ;;; For unsupported model encodings, return `errno::inval`.
+  (@interface func (export "load_model")
+    ;;; The address of the model to be loaded.
+    (field $model_buf (@witx pointer u8))
+    ;;; The length of the model to be loaded.
+    (field $model_len $size)
+    ;;; The encoding of the model.
+    (field $model_encoding $model_encoding)
+
+    (result $error $errno)
+    (result $model $model)
+  )
+
+  ;;; TODO Functions like `describe_model_inputs` and `describe_model_outputs` (returning
+  ;;; an array of $tensor_descriptions) might be useful for introspecting the model but are not yet included here.
+
+  ;;; Create an execution instance of a loaded model.
+  ;;; TODO this could accepts flags that might affect the compilation or execution of the model.
+  (@interface func (export "init_model_execution")
+    (field $loaded_model $model)
+    (result $error $errno)
+    (result $model_execution $model_execution)
+  )
+
+  ;;; Define the inputs to use for model inference.
+  ;;;
+  ;;; This should return an $errno (TODO define) if the input tensor does not match the expected dimensions and type
+  ;;; of the model.
+  (@interface func (export "set_input")
+    (param $model $model_execution)
+    ;;; The index of the input to change.
+    (param $index u32)
+    ;;; The tensor to set as the input.
+    (param $tensor $tensor)
+
+    (result $error $errno)
+  )
+
+  ;;; Extract the outputs after model inference.
+  ;;;
+  ;;; This should return an $errno (TODO define) if the inference has not yet run.
+  (@interface func (export "get_output")
+    (param $model $model_execution)
+    ;;; The index of the output to retrieve.
+    (param $index u32)
+
+    ;;; The output tensor to retrieve.
+    (result $tensor $tensor)
+    (result $error $errno)
+  )
+
+  ;;; Compute the inference using the model on the given inputs (see `set_input`).
+  ;;;
+  ;;; This should return an $errno (TODO define) if the inputs are not all defined.
+  (@interface func (export "compute")
+    (param $model $model_execution)
+    (result $error $errno)
+  )
+)
