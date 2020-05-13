@@ -14,7 +14,7 @@
 ;;;
 ;;; The array length matches the tensor rank and each element in the array
 ;;; describes the size of each dimension.
-(typename $tensor_dimensions (array i32))
+(typename $tensor_dimensions (array u32))
 
 ;;; The type of the elements in a tensor.
 (typename $tensor_type
@@ -52,7 +52,7 @@
 (typename $graph_encoding
   (enum u8
     $unknown
-    // TODO fill out with more graph types once we know what encoding formats of graphs to support.
+    ;; TODO fill out with more graph types once we know what encoding formats of graphs to support.
   )
 )
 
@@ -124,8 +124,8 @@
     (param $index u32)
 
     ;;; The output tensor to retrieve.
-    (result $tensor $tensor)
     (result $error $errno)
+    (result $tensor $tensor)
   )
 
   ;;; Compute the inference on the given inputs (see `set_input`).
