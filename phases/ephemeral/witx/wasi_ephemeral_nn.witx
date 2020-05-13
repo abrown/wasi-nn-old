@@ -16,7 +16,7 @@
 ;;; describes the size of each dimension.
 (typename $tensor_dimensions (array i32))
 
-;;; The type of the elements in tensor.
+;;; The type of the elements in a tensor.
 (typename $tensor_type
   (enum u8
     $f16
@@ -79,13 +79,13 @@
   ;;; return `errno::inval`.
   (@interface func (export "load")
     ;;; The address to load from.
-    (field $graph_buf (@witx pointer u8))
+    (param $graph_buf (@witx pointer u8))
     ;;; The length of the data to load.
-    (field $graph_buf_len $size)
+    (param $graph_buf_len $size)
     ;;; The encoding of the graph.
-    (field $encoding $graph_encoding)
+    (param $encoding $graph_encoding)
     ;;; Where to execute the graph.
-    (field $target $execution_target)
+    (param $target $execution_target)
 
     (result $error $errno)
     (result $graph $graph)
